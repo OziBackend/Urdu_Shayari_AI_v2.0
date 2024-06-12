@@ -9,6 +9,11 @@ import json
 from Data_Values.prompts import prompts
 # from Data_Values.roles import roles
 from Data_Values.roles import get_role
+# loading database
+from Database.database_config import (
+    collection_by_type,
+    collection_by_topic
+)
 
 
 os.environ["OPENAI_API_KEY"] = keys["openAI"]  # Replace with your actual key
@@ -395,3 +400,17 @@ def check():
 def generateStream():
     print('1')
     return check()
+
+
+####################################################################################
+####################################################################################
+##############              Shayaris with Database                    ##############
+####################################################################################
+####################################################################################
+
+def save_shayari_by_topic(app, data, returned_data, logger):
+    print('Save shayari_by_topic')
+    json_data = data["data"]
+    result = collection_by_topic.insert_one(json_data)
+    print('Saved Data Id: ==> %s', str(result.inserted_id))
+    

@@ -10,7 +10,9 @@ from Controller.controller import (
     generateStream,
     
     stream_poetry_by_topic,
-    stream_poetry_by_type
+    stream_poetry_by_type,
+
+    save_shayari_by_topic
 )
 import threading
 import re
@@ -279,3 +281,36 @@ def setup_routes(app):
     @app.route('/generateTest', methods=['GET'])
     def func():
         return Response(generateStream(), content_type='text/plain')
+    
+
+    #==========================================================================#
+    # Database connected Routes
+    #==========================================================================#
+
+    @app.route("/urdu-shayari/v2.0/save_poetry_by_topic", methods=["GET"])
+    def save_to_db_by_topic():
+        print('1')
+        query_params = {}
+        for key, value in request.args.items():
+            query_params[key] = value
+
+        if not query_params or not query_params["poetry_topic"]:
+            print("--------Parameters missing--------")
+            return (
+                jsonify(
+                    {"message": "Bad Request, no query found or parameters missing"}
+                ),
+                400,
+            )
+        data = request.json
+
+        logger.info(f"Calling API 'get_poetry_by_topic' for {query_params["poetry_topic"]}")
+
+        return_data = {}
+        additional_data = {
+            "query_params": query_params,
+            "data": data}
+
+        save_shayari_by_topic(app, additional_data, return_data, logger)
+
+        return jsonify({"message": "Data is saved in database (X)"})
