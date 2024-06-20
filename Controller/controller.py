@@ -22,6 +22,19 @@ client = OpenAI()
 
 
 ####################################################################################
+# =============================Database Functions==================================#
+####################################################################################
+
+def savePromptinDB(system_prompt, user_prompt, username):
+    json_data ={
+        "username":username,
+        "user_prompt":user_prompt,
+        "system_prompt":system_prompt
+    }
+    result = collection_by_topic.insert_one(json_data)
+    print('Saved Data Id: ==> %s', str(result.inserted_id))
+
+####################################################################################
 # =================================Functions=======================================#
 ####################################################################################
 
@@ -50,7 +63,7 @@ def genAIfunction(system_role, prompt, app, logger):
             return {"flag": False, "completion_data": ""}
 
 
-def genAIfunctionStream(system_role, prompt, app, logger):
+def genAIfunctionStream(system_role, prompt, app, logger, username):
     with app.app_context():
         try:
             stream = client.chat.completions.create(
@@ -67,14 +80,16 @@ def genAIfunctionStream(system_role, prompt, app, logger):
                 ],
                 stream=True
             )
+            complete_data=''
             sentence=''
             for chunk in stream:
                 data = chunk.choices[0].delta.content
 
                 if data is None and sentence != "":
+                    complete_data += sentence
                     yield sentence
                 if data is not None:
-                    print(f'Data: {data}')
+                    # print(f'Data: {data}')
                     if ']' not in data:
                         sentence += data
                     else:
@@ -90,9 +105,12 @@ def genAIfunctionStream(system_role, prompt, app, logger):
                             # Check if the last character is a comma and remove it
                             if sentence.endswith(','):
                                 sentence = sentence[:-1]
-                            yield '<--'+sentence+'-->'
+                            complete_data += sentence
+                            yield sentence
                             yield '\n'
                         sentence=''
+            if username != "":
+                savePromptinDB(complete_data, prompt, username)
 
         except BaseException as e:
             logger.error("1... Exception thrown in GenAIfunctionstream = %s", str(e))
@@ -332,9 +350,10 @@ def stream_poetry_by_topic(app, data, logger):
     prompt = prompts["4"].format(poetry_topic=data["poetry_topic"])
     # Loading Role
     system_role = get_role(app, "1", "")
-    
+    username = data["username"]
+
     print('====>>In stream_poetry_by_topic function')
-    return genAIfunctionStream(system_role, prompt, app, logger)
+    return genAIfunctionStream(system_role, prompt, app, logger, username)
 
 #Stream by Type
 def stream_poetry_by_type(app, data, logger):
@@ -344,9 +363,10 @@ def stream_poetry_by_type(app, data, logger):
     prompt = prompts["5"].format(poetry_type=data["poetry_type"])
     # Loading Role
     system_role = get_role(app, "1", "")
+    username = data["username"]
     
     print('====>>In stream_poetry_by_type function')
-    return genAIfunctionStream(system_role, prompt, app, logger)
+    return genAIfunctionStream(system_role, prompt, app, logger, username)
 
 
 ####################################################################################

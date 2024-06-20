@@ -235,7 +235,7 @@ def setup_routes(app):
         for key, value in request.args.items():
             query_params[key] = value
 
-        if not query_params or not query_params.get("poetry_topic"):
+        if not query_params or not query_params.get("poetry_topic") or not query_params.get("username"):
             logger.critical("--------Parameters missing--------")
             print("--------Parameters missing--------")
             return (
@@ -245,7 +245,7 @@ def setup_routes(app):
                 400,
             )
         
-        logger.info(f"Calling API 'stream_poetry_by_topic' for {query_params['poetry_topic']}")
+        logger.info(f"{query_params['username']} Called API 'stream_poetry_by_topic' for {query_params['poetry_topic']}")
         additional_data = query_params
 
 
