@@ -2,17 +2,13 @@ from flask import jsonify, request, Response
 
 # from helpers import some_helper_function
 from Controller.controller import (
-    get_poetry_by_poet_and_poem_name,
-    get_poetry_by_topic,
-    get_poetry_by_type,
     ai_conversation_with_poets,
-
-    generateStream,
     
     stream_poetry_by_topic,
     stream_poetry_by_type,
 
-    save_shayari_by_topic
+    get_chat_history
+    # save_shayari_by_topic
 )
 import threading
 import re
@@ -33,142 +29,7 @@ def setup_routes(app):
     #==========================================================================#
     # Shayari Routes: Urdu Shayari APIs using ChatGPT
     #==========================================================================#
-    @app.route("/urdu-shayari/ai/get_poetry_by_poet_and_poem_name", methods=["GET"])
-    def poetry_by_poet_and_poem_name():
-        query_params = {}
-        for key, value in request.args.items():
-            query_params[key] = value
-
-        if (
-            not query_params
-            or not query_params["poem_name"]
-            or not query_params["poet_name"]
-        ):
-            print("--------Parameters missing--------")
-            return (
-                jsonify(
-                    {"message": "Bad Request, no query found or parameters missing"}
-                ),
-                400,
-            )
-        logger.info(f"Calling API 'get_poetry_by_poet_and_poem_name' for {query_params["poet_name"]} and {query_params["poem_name"]}")
-
-        return_data = {}
-        additional_data = query_params
-
-        # Acquire Semaphore
-        print("Acquiring a Semaphore")
-        semaphores.acquire()
-        event = threading.Event()
-        t = threading.Thread(
-            target=get_poetry_by_poet_and_poem_name,
-            args=(app, additional_data, return_data, event, logger),
-        )
-        t.start()
-        t.join()
-
-        # Processing on response
-        print(return_data)
-
-        # Release Semaphore
-        print("Releasing a Semaphore")
-        semaphores.release()
-
-        if not return_data:
-            return jsonify({"response": [] })
-
-        return jsonify(return_data)
-
-    @app.route("/urdu-shayari/ai/get_poetry_by_topic", methods=["GET"])
-    def poetry_by_topic():
-        print("CHat GPT AI funtion to get_poetry_by_topic called")
-        query_params = {}
-        for key, value in request.args.items():
-            query_params[key] = value
-
-        if not query_params or not query_params["poetry_topic"]:
-            logger.critical("--------Parameters missing--------")
-            print("--------Parameters missing--------")
-            return (
-                jsonify(
-                    {"message": "Bad Request, no query found or parameters missing"}
-                ),
-                400,
-            )
-        logger.info(f"Calling API 'get_poetry_by_topic' for {query_params["poetry_topic"]}")
-
-        # print("Query Params===>", query_params)
-        return_data = {}
-        additional_data = query_params
-
-        # Acquire Semaphore
-        print("--Acquiring a Semaphore--")
-        semaphores.acquire()
-
-        t = threading.Thread(
-            target=get_poetry_by_topic, args=(app, additional_data, return_data, logger)
-        )
-        t.start()
-        t.join()
-
-        # Processing on response
-        # print(return_data)
-
-        # Release Semaphore
-        print("Releasing a Semaphore")
-        semaphores.release()
-
-        if not return_data:
-            logger.error('No Data returned from AI API')
-            print('No Data returned from AI API')
-            return jsonify({"response": [] }), 500
-
-        return jsonify(return_data)
-
-    @app.route("/urdu-shayari/ai/get_poetry_by_type", methods=["GET"])
-    def poetry_by_type():
-        print("CHat GPT AI funtion to get_poetry_by_type called")
-        query_params = {}
-        for key, value in request.args.items():
-            query_params[key] = value
-
-        if not query_params or not query_params["poetry_type"]:
-            print("--------Parameters missing--------")
-            return (
-                jsonify(
-                    {"message": "Bad Request, no query found or parameters missing"}
-                ),
-                400,
-            )
-
-        logger.info(f"Calling API 'get_poetry_by_type' for {query_params["poetry_type"]}")
-
-        return_data = {}
-        additional_data = query_params
-
-        # Acquire Semaphore
-        print("Acquiring a Semaphore")
-        semaphores.acquire()
-
-        t = threading.Thread(
-            target=get_poetry_by_type, args=(app, additional_data, return_data, logger)
-        )
-        t.start()
-        t.join()
-
-        # Processing on response
-        print(return_data)
-
-        # Release Semaphore
-        print("Releasing a Semaphore")
-        semaphores.release()
-        
-        if not return_data:
-            print('No data returned from AI API')
-            return jsonify({"response": [] })
-
-        return jsonify(return_data)
-
+    
     @app.route("/urdu-shayari/ai/ai_conversation_with_poets", methods=["POST"])
     def ai_conversation():
         print("CHat GPT AI funtion to ai_conversation_with_poets called")
@@ -225,6 +86,7 @@ def setup_routes(app):
 
         return jsonify(return_data)
     
+
     #==========================================================================#
     # Streaming Route: Get poetry by topic
     #==========================================================================#
@@ -268,7 +130,7 @@ def setup_routes(app):
                 400,
             )
         
-        logger.info(f"Calling API 'stream_poetry_by_type' for {query_params['poetry_type']}")
+        logger.info(f"{query_params['username']} Called API 'stream_poetry_by_type' for {query_params['poetry_type']}")
         additional_data = query_params
 
 
@@ -276,41 +138,69 @@ def setup_routes(app):
 
 
     #==========================================================================#
-    # Testing Routes: Checking
-    #==========================================================================#
-    @app.route('/generateTest', methods=['GET'])
-    def func():
-        return Response(generateStream(), content_type='text/plain')
-    
-
-    #==========================================================================#
     # Database connected Routes
     #==========================================================================#
 
-    @app.route("/urdu-shayari/v2.0/save_poetry_by_topic", methods=["GET"])
-    def save_to_db_by_topic():
-        print('1')
+    @app.route("/urdu-shayari/ai/get_chat_history", methods=['GET'])
+    def get_chat_history_main():
+        print("Function to get_chat_history called")
         query_params = {}
         for key, value in request.args.items():
             query_params[key] = value
 
-        if not query_params or not query_params["poetry_topic"]:
-            print("--------Parameters missing--------")
-            return (
-                jsonify(
-                    {"message": "Bad Request, no query found or parameters missing"}
-                ),
-                400,
-            )
-        data = request.json
+        
+        logger.info(f"{query_params['username']} Called API 'get_chat_history'")
+        additional_data = query_params
 
-        logger.info(f"Calling API 'get_poetry_by_topic' for {query_params["poetry_topic"]}")
+        return_data ={}
 
-        return_data = {}
-        additional_data = {
-            "query_params": query_params,
-            "data": data}
+        # Acquire Semaphore
+        print("Acquiring a Semaphore")
+        semaphores.acquire()
 
-        save_shayari_by_topic(app, additional_data, return_data, logger)
+        t = threading.Thread(
+            target=get_chat_history, args=(app, additional_data, return_data, logger)
+        )
+        t.start()
+        t.join()
 
-        return jsonify({"message": "Data is saved in database (X)"})
+
+        # Processing on response
+        print(return_data)
+
+        # Release Semaphore
+        print("Releasing a Semaphore")
+        semaphores.release()
+
+        if not return_data:
+            return jsonify({"response": [] })
+
+        return jsonify(return_data)
+
+    # @app.route("/urdu-shayari/v2.0/save_poetry_by_topic", methods=["GET"])
+    # def save_to_db_by_topic():
+    #     print('1')
+    #     query_params = {}
+    #     for key, value in request.args.items():
+    #         query_params[key] = value
+
+    #     if not query_params or not query_params["poetry_topic"]:
+    #         print("--------Parameters missing--------")
+    #         return (
+    #             jsonify(
+    #                 {"message": "Bad Request, no query found or parameters missing"}
+    #             ),
+    #             400,
+    #         )
+    #     data = request.json
+
+    #     logger.info(f"Calling API 'get_poetry_by_topic' for {query_params["poetry_topic"]}")
+
+    #     return_data = {}
+    #     additional_data = {
+    #         "query_params": query_params,
+    #         "data": data}
+
+    #     save_shayari_by_topic(app, additional_data, return_data, logger)
+
+    #     return jsonify({"message": "Data is saved in database (X)"})

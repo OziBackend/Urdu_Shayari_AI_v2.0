@@ -4,6 +4,7 @@ from Keys.authKeys import keys
 import os
 import re
 import json
+from datetime import datetime
 
 # laoding prompts file
 from Data_Values.prompts import prompts
@@ -20,18 +21,40 @@ os.environ["OPENAI_API_KEY"] = keys["openAI"]  # Replace with your actual key
 
 client = OpenAI()
 
+# Helper function to format MongoDB documents
+def format_document(doc):
+    doc['_id'] = str(doc['_id'])
+    return doc
 
 ####################################################################################
 # =============================Database Functions==================================#
 ####################################################################################
 
-def savePromptinDB(system_prompt, user_prompt, username):
+def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, check, logger):
+    user_prompt_command = ''
+    if check == 'by_type' or check == 'by_topic':
+        prompt = user_value
+        logger.debug('User Value is : ', user_value)
+    else:
+        prompt = user_value
+        logger.debug(f'User Prompt is : {user_prompt}')
+        user_prompt_command = user_prompt
+
     json_data ={
         "username":username,
-        "user_prompt":user_prompt,
-        "system_prompt":system_prompt
+        "category": check,
+        "search_value":prompt,
+        "user_prompt_command":user_prompt_command,
+        "user_prompt_time":user_time,
+        "system_prompt":system_prompt,
+        "system_response_time":datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
     }
-    result = collection_by_topic.insert_one(json_data)
+
+    if check == 'by_type':
+        result = collection_by_type.insert_one(json_data)
+    elif check == 'by_topic':
+        result = collection_by_topic.insert_one(json_data)
+    
     print('Saved Data Id: ==> %s', str(result.inserted_id))
 
 ####################################################################################
@@ -63,7 +86,7 @@ def genAIfunction(system_role, prompt, app, logger):
             return {"flag": False, "completion_data": ""}
 
 
-def genAIfunctionStream(system_role, prompt, app, logger, username):
+def genAIfunctionStream(system_role, prompt, app, logger, username, user_time, user_value, check):
     with app.app_context():
         try:
             stream = client.chat.completions.create(
@@ -80,22 +103,25 @@ def genAIfunctionStream(system_role, prompt, app, logger, username):
                 ],
                 stream=True
             )
+            
+            #all data will be stored in this variable to store in database
             complete_data=''
+            
             sentence=''
             for chunk in stream:
                 data = chunk.choices[0].delta.content
-
+                #if data is completed and response reaches to end, IF statement will work
                 if data is None and sentence != "":
                     complete_data += sentence
                     yield sentence
                 if data is not None:
-                    # print(f'Data: {data}')
                     if ']' not in data:
                         sentence += data
                     else:
                         data = data.replace(']','')
                         print('replaced data====>', data)
                         sentence += data
+                        complete_data += '\n'
                         sentence = sentence.replace('\n','')
                         sentence = sentence.replace('[','')
 
@@ -109,183 +135,14 @@ def genAIfunctionStream(system_role, prompt, app, logger, username):
                             yield sentence
                             yield '\n'
                         sentence=''
+            
             if username != "":
-                savePromptinDB(complete_data, prompt, username)
+                savePromptinDB(complete_data, prompt, username, user_time, user_value, check, logger)
 
         except BaseException as e:
             logger.error("1... Exception thrown in GenAIfunctionstream = %s", str(e))
             print(f"1... In GenAIfunctionstream exception is = {e}")
             yield ""
-
-####################################################################################
-# =========================Poetry by Poet and Poem Name============================#
-####################################################################################
-
-
-def poetry_by_name_and_poetname(app, data, logger):
-
-    with app.app_context():
-
-        prompt = prompts["1"].format(poet_name=data["poet_name"], poem_name=data["poem_name"])
-        system_role = get_role(app, "1", "")
-
-        print('Your Prompy is : ', prompt)
-
-        try:
-            AI_data = genAIfunction(system_role, prompt, app, logger)
-            if AI_data['flag']:
-                completed_data = AI_data['completion_data']
-                print("Data Completion============>", completed_data)
-                return {"flag": True, "completion_data": completed_data}
-            else:
-                logger.error('2... No data returned from GenAI function')
-                return {"flag": False, "completion_data": ""}
-
-
-        except BaseException as e:
-            # Exception is thrown while calling ChatGPT Api
-            logger.error('2... Exception thrown in poetry_by_poet_and_poem_name function = %s', str(e))
-            print(f"2... In poetry_by_poet_and_poem_name exception is = {e}")
-            return {"flag": False, "completion_data": ""}
-
-
-def get_poetry_by_poet_and_poem_name(app, data, return_data, event, logger):
-    with app.app_context():
-        acquired_data = poetry_by_name_and_poetname(app, data, logger)
-        # print("Completion Data: ", acquired_data['completion_data'])
-        if acquired_data["flag"]:
-            # data is found and processed before sending to client
-            data = acquired_data["completion_data"]
-            data_cleaned = re.sub(r'[{}\*)(]', "", data)
-            data_cleaned = re.sub(r',]&', "]", data_cleaned)
-            data = data.split(",")
-            return_data["response"] = data
-        else:
-            # data not found, exception was thrown, blank array is returned to client
-            logger.error('3... No data returned to Main Route from get_poetry_by_poet_and_poem_name')
-            return_data["response"] = []
-
-
-####################################################################################
-# ================================Poetry by Topic==================================#
-####################################################################################
-
-
-def poetry_by_topic(app, data, logger):
-    with app.app_context():
-
-        prompt = prompts["2"].format(poetry_topic=data["poetry_topic"])
-        system_role = get_role(app, "1", "")
-
-        try:
-            AI_data = genAIfunction(system_role, prompt, app, logger)
-            if AI_data['flag']:
-                completed_data = AI_data['completion_data']
-                print("Data Completion============>", completed_data)
-                return {"flag": True, "completion_data": completed_data}
-            else:
-                logger.error('4... No data returned from GenAI function')
-                return {"flag": False, "completion_data": ""}
-            
-        except BaseException as e:
-            logger.error('4... Exception thrown in poetry_by_topic function = %s', str(e))
-            print(f"4... In poetry_by_topic exception is = {e}")
-            return {"flag": False, "completion_data": ""}
-
-def get_poetry_by_topic(app, data, returned_data, logger):
-    with app.app_context():
-        
-        acquired_data = poetry_by_topic(app, data, logger)
-
-        if acquired_data["flag"]:
-            # data is found and processed before sending to client
-            data = acquired_data["completion_data"]
-            data_cleaned = data.replace("\n", ',')
-            data_cleaned = data.replace("'", '"')
-            data_cleaned = re.sub(r'[{}\*)(];', "", data_cleaned)
-            data_cleaned = re.sub(r',]$', "]", data_cleaned)
-
-            try:
-                # data is turned to JSON dict object
-                print('DATA TO CONVERT TO JSON',data_cleaned)
-                data_dict = json.loads(data_cleaned)
-                
-                print("JSON Formated Data============> %s", data_dict)
-                returned_data["response"] = data_dict
-            except BaseException as e:
-                # Exception is thrown while calling ChatGPT Api
-                print(f"5... In get_poetry_by_topic exception is = {e}")
-                logger.error('Error in JSON = %s', str(data_cleaned))
-                logger.error('5... Exception thrown in get_poetry_by_topic = %s', e)
-                returned_data["response"] = []
-
-
-        else:
-            # data not found, exception was thrown, blank array is returned to client
-            logger.error('5... Empty Response from API: []')
-            returned_data["response"] = []
-
-
-####################################################################################
-# ===============================Poetry by Type=================================== #
-####################################################################################
-
-
-def poetry_by_type(app, data, logger):
-    with app.app_context():
-
-        prompt = prompts["3"].format(poetry_type=data["poetry_type"])
-        system_role = get_role(app, "1", "")
-
-        try:
-            AI_data = genAIfunction(system_role, prompt, app, logger)
-            if AI_data['flag']:
-                completed_data = AI_data['completion_data']
-                print("Data Completion============>", completed_data)
-                return {"flag": True, "completion_data": completed_data}
-            else:
-                logger.error('6.. No data returned from GenAI function')
-                return {"flag": False, "completion_data": ""}
-
-        except BaseException as e:
-            logger.error('6... Exception thrown in poetry_by_type function = %s', str(e))
-            print(f"6... In poetry_by_type exception is = {e}")
-            return {"flag": False, "completion_data": ""}
-
-
-def get_poetry_by_type(app, data, returned_data, logger):
-
-    with app.app_context():
-        
-        acquired_data = poetry_by_type(app, data, logger)
-
-        if acquired_data["flag"]:
-            # data is found and processed before sending to client
-            data = acquired_data["completion_data"]
-            data_cleaned = data.replace("\n", ',')
-            data_cleaned = data.replace("'", '"')
-            data_cleaned = re.sub(r'[{}\*)(]', "", data_cleaned)
-            data_cleaned = re.sub(r',]$', "]", data_cleaned)
-
-            try:
-                # data is turned to JSON dict object
-                print('DATA TO CONVERT TO JSON',data_cleaned)
-                data_dict = json.loads(data_cleaned)
-                
-                print("JSON Formated Data============> %s", data_dict)
-                returned_data["response"] = data_dict
-            except BaseException as e:
-                # Exception is thrown while calling ChatGPT Api
-                print(f"7... In def get_poetry_by_type(app, data, returned_data, logger): exception is = {e}")
-                logger.error('Error in JSON = %s', str(data_cleaned))
-                logger.error('7... Exception thrown in def get_poetry_by_type(app, data, returned_data, logger): = %s', e)
-                returned_data["response"] = []
-
-        else:
-            # data not found, exception was thrown, blank array is returned to client
-            logger.error('7... Empty Response from API: []')
-            returned_data["response"] = []
-
 
 ####################################################################################
 # ==========================AI Conversations with Poets============================#
@@ -351,9 +208,20 @@ def stream_poetry_by_topic(app, data, logger):
     # Loading Role
     system_role = get_role(app, "1", "")
     username = data["username"]
+    user_prompt_time = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
+    user_value = data["poetry_topic"]
 
     print('====>>In stream_poetry_by_topic function')
-    return genAIfunctionStream(system_role, prompt, app, logger, username)
+    return genAIfunctionStream(
+        system_role, 
+        prompt, 
+        app, 
+        logger, 
+        username, 
+        user_prompt_time,
+        user_value,
+        "by_topic"
+    )
 
 #Stream by Type
 def stream_poetry_by_type(app, data, logger):
@@ -364,62 +232,20 @@ def stream_poetry_by_type(app, data, logger):
     # Loading Role
     system_role = get_role(app, "1", "")
     username = data["username"]
+    user_prompt_time = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
+    user_value = data["poetry_type"]
     
     print('====>>In stream_poetry_by_type function')
-    return genAIfunctionStream(system_role, prompt, app, logger, username)
-
-
-####################################################################################
-##############                  Streaming Testing                     ##############
-####################################################################################
-def check():
-    print('2')
-    stream = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {
-                "role": "user",
-                "content": """I want to generate  'نظمیں' about 'محبت' in Urdu text. Number of poems should be 4 and each containing 4 sentences or more. Strictly there should be no English text in your response and there should be no useless text other than poems. The format should be in following  format:
-
-                ['1st stanza of poem1', '2nd stanza of poem1','3rd stanza of poem1',....],
-                ['1st stanza of poem2', '2nd stanza of poem2','3rd stanza of poem2',....],
-                ['1st stanza of poem3', '2nd stanza of poem3','3rd stanza of poem3',....],
-                ....""",
-            }
-        ],
-        stream=True,
-    )
-    sentence = ''
-    for chunk in stream:
-        data = chunk.choices[0].delta.content
-        print('Data value: ', data)
-        
-        if data is None:
-            # json_data = json.dumps({"endflag": True})
-            yield sentence
-        if data is not None:
-            print(f'Data: {data}')
-            if ']' not in data:
-                sentence += data
-            else:
-                # print('original data====>', data)
-                data = data.replace(']','')
-                data = data.replace('\n','')
-                print('replaced data====>', data)
-                sentence += data
-                sentence = sentence.replace('[','')
-                if sentence == "":
-                    yield ""
-                else:
-                    yield sentence +'\n'
-                sentence=''
-            # json_data = json.dumps({"data": data, "endflag": False})  # Wrap data in a dictionary and convert to JSON
-            # yield json_data
-
-
-def generateStream():
-    print('1')
-    return check()
+    return genAIfunctionStream(
+        system_role, 
+        prompt, 
+        app, 
+        logger, 
+        username, 
+        user_prompt_time,
+        user_value,
+        "by_type"
+        )
 
 
 ####################################################################################
@@ -428,9 +254,28 @@ def generateStream():
 ####################################################################################
 ####################################################################################
 
-def save_shayari_by_topic(app, data, returned_data, logger):
-    print('Save shayari_by_topic')
-    json_data = data["data"]
-    result = collection_by_topic.insert_one(json_data)
-    print('Saved Data Id: ==> %s', str(result.inserted_id))
+def get_chat_history(app, data,returned_data, logger):
+    with app.app_context():
+        username = data['username']
+        items = []
+
+        if data['poetry_topic']:
+            topic = data['poetry_topic']
+            items = collection_by_topic.find({'username':username, 'search_value':topic})
+        elif data['poetry_type']:
+            type = data['poetry_type']
+            items = collection_by_type.find({'username':username, 'search_value':type})
+    
+        returned_data['items']= []
+        for item in items:
+            # Convert ObjectId to string if necessary
+            if '_id' in item:
+                item['_id'] = str(item['_id'])
+            returned_data['items'].append(item)
+
+# def save_shayari_by_topic(app, data, returned_data, logger):
+#     print('Save shayari_by_topic')
+#     json_data = data["data"]
+#     result = collection_by_topic.insert_one(json_data)
+#     print('Saved Data Id: ==> %s', str(result.inserted_id))
     
