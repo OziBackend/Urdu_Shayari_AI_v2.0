@@ -13,7 +13,8 @@ from Data_Values.roles import get_role
 # loading database
 from Database.database_config import (
     collection_by_type,
-    collection_by_topic
+    collection_by_topic,
+    collection_of_conversation
 )
 
 
@@ -32,10 +33,11 @@ def format_document(doc):
 
 def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, check, logger):
     user_prompt_command = ''
+
     if check == 'by_type' or check == 'by_topic':
         prompt = user_value
         logger.debug('User Value is : ', user_value)
-    else:
+    elif check == 'ai_chat':
         prompt = user_value
         logger.debug(f'User Prompt is : {user_prompt}')
         user_prompt_command = user_prompt
@@ -54,6 +56,8 @@ def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, 
         result = collection_by_type.insert_one(json_data)
     elif check == 'by_topic':
         result = collection_by_topic.insert_one(json_data)
+    elif check == "ai_chat":
+        result = collection_of_conversation.insert_one(json_data)
     
     print('Saved Data Id: ==> %s', str(result.inserted_id))
 
@@ -61,7 +65,7 @@ def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, 
 # =================================Functions=======================================#
 ####################################################################################
 
-def genAIfunction(system_role, prompt, app, logger):
+def genAIfunction(system_role, prompt, app, logger, username, user_time, user_value, check):
     with app.app_context():
         try:
             completion = client.chat.completions.create(
@@ -78,6 +82,7 @@ def genAIfunction(system_role, prompt, app, logger):
                         ],
                     )
             completed_data = completion.choices[0].message.content
+            savePromptinDB(completed_data, prompt, username, user_time, user_value, check, logger)
             return {"flag": True, "completion_data": completed_data}
 
         except BaseException as e:
@@ -152,18 +157,29 @@ def genAIfunctionStream(system_role, prompt, app, logger, username, user_time, u
 def ai_conversation(app, data, logger):
     
     with app.app_context():
+        username = data["username"]
+        user_prompt_time = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
 
         prompt = data["prompt"]
         number =''
-        if data['poet_name'] == 'Urdu Scholar':
+        poetname = data['poet_name']
+
+        if poetname == 'Ustad':
+            poetname = 'Urdu Scholar'
+
+        if poetname in ['Urdu Scholar', 'Male', 'Female']:
             number ='3'
+        elif poetname == 'Competitor':
+            number = '4'
         else:
             number ='2'
-        system_role = get_role(app, number, data["poet_name"])
+
+        system_role = get_role(app, number, poetname)
         
         
         try:
-            AI_data = genAIfunction(system_role, prompt, app, logger)
+            AI_data = genAIfunction(system_role, prompt, app, logger, username, user_prompt_time, poetname, "ai_chat")
+
             print('getting ai data===========++++++++++',AI_data)
             if AI_data['flag']:
                 completed_data = AI_data['completion_data']
@@ -259,12 +275,18 @@ def get_chat_history(app, data,returned_data, logger):
         username = data['username']
         items = []
 
-        if data['poetry_topic']:
+        if data.get('poetry_topic'):
             topic = data['poetry_topic']
+            print(topic)
             items = collection_by_topic.find({'username':username, 'search_value':topic})
-        elif data['poetry_type']:
+        elif data.get('poetry_type'):
             type = data['poetry_type']
+            print(type)
             items = collection_by_type.find({'username':username, 'search_value':type})
+        elif data.get('character'):
+            character = data['character']
+            print(character)
+            items = collection_of_conversation.find({'username':username, 'search_value':character})
     
         returned_data['items']= []
         for item in items:

@@ -55,13 +55,13 @@ def setup_routes(app):
                 400,
             )
         
-        logger.info(f"Calling API 'ai_conversation' for {query_params["poet_name"]}")
-        logger.info(f"Calling API 'ai_conversation' with prompt = {data.get("prompt")}")
+        logger.info(f"{query_params['username']} Called API 'ai_conversation'")
 
         return_data = {}
         additional_data = {
             "prompt": data.get("prompt"),
             "poet_name": query_params["poet_name"],
+            "username": query_params["username"],
         }
 
         # Acquire Semaphore
