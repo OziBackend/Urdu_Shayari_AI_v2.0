@@ -14,7 +14,9 @@ from Data_Values.roles import get_role
 from Database.database_config import (
     collection_by_type,
     collection_by_topic,
-    collection_of_conversation
+    collection_of_conversation,
+
+    sort_orders
 )
 
 
@@ -273,6 +275,15 @@ def stream_poetry_by_type(app, data, logger):
 def get_chat_history(app, data,returned_data, logger):
     with app.app_context():
         username = data['username']
+        if data.get('page'):
+            page = int(data['page'])
+        else:
+            page = 1
+
+        print(page)
+        limit = 2
+        skip = (page - 1) *limit
+
         items = []
 
         if data.get('poetry_topic'):
@@ -286,14 +297,14 @@ def get_chat_history(app, data,returned_data, logger):
         elif data.get('character'):
             character = data['character']
             print(character)
-            items = collection_of_conversation.find({'username':username, 'search_value':character})
+            items = collection_of_conversation.find({'username':username, 'search_value':character}).sort("user_prompt_time", sort_orders[1]).skip(skip).limit(limit)
     
         returned_data['items']= []
         for item in items:
             # Convert ObjectId to string if necessary
             if '_id' in item:
                 item['_id'] = str(item['_id'])
-            returned_data['items'].append(item)
+            returned_data['items'].insert(0,item)
 
 # def save_shayari_by_topic(app, data, returned_data, logger):
 #     print('Save shayari_by_topic')
