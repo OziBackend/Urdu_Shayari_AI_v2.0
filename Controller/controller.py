@@ -38,10 +38,10 @@ def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, 
 
     if check == 'by_type' or check == 'by_topic':
         prompt = user_value
-        logger.debug('User Value is : ', user_value)
+        logger.debug(f'User Value is : {str(user_value)}')
     elif check == 'ai_chat':
         prompt = user_value
-        logger.debug(f'User Prompt is : {user_prompt}')
+        logger.debug(f'User Prompt is : {str(user_prompt)}')
         user_prompt_command = user_prompt
 
     json_data ={
@@ -281,7 +281,7 @@ def get_chat_history(app, data,returned_data, logger):
             page = 1
 
         print(page)
-        limit = 2
+        limit = 10
         skip = (page - 1) *limit
 
         items = []
@@ -297,6 +297,8 @@ def get_chat_history(app, data,returned_data, logger):
         elif data.get('character'):
             character = data['character']
             print(character)
+            if character == 'Ustad':
+                character = 'Urdu Scholar'
             items = collection_of_conversation.find({'username':username, 'search_value':character}).sort("user_prompt_time", sort_orders[1]).skip(skip).limit(limit)
     
         returned_data['items']= []
