@@ -2,4 +2,5 @@ authKeys.py
 venv_urdu_shayari_AI
 success.log
 failure.log
+prompts.log
 controller.cpython-312.pyc
