@@ -94,6 +94,7 @@ def genAIfunction(system_role, prompt, app, logger, username, user_time, user_va
 
 
 def genAIfunctionStream(system_role, prompt, app, logger, username, user_time, user_value, check):
+    print('in genAIFunction Streaming')
     with app.app_context():
         try:
             stream = client.chat.completions.create(
@@ -165,11 +166,15 @@ def ai_conversation(app, data, logger):
         prompt = data["prompt"]
         number =''
         poetname = data['poet_name']
+        temp = ''
 
         if poetname == 'Ustad':
+            temp = poetname
             poetname = 'Urdu Scholar'
 
-        if poetname in ['Urdu Scholar', 'Male', 'Female']:
+        if poetname == 'Urdu Scholar':
+            number='3'
+        if poetname in ['Male', 'Female']:
             number ='3'
         elif poetname == 'Competitor':
             number = '4'
@@ -177,6 +182,8 @@ def ai_conversation(app, data, logger):
             number ='2'
 
         system_role = get_role(app, number, poetname)
+        if temp=='Ustad':
+            poetname=temp
         
         
         try:
@@ -275,14 +282,14 @@ def stream_poetry_by_type(app, data, logger):
 def get_chat_history(app, data,returned_data, logger):
     with app.app_context():
         username = data['username']
-        if data.get('page'):
-            page = int(data['page'])
-        else:
-            page = 1
+        # if data.get('page'):
+        #     page = int(data['page'])
+        # else:
+        #     page = 1
 
-        print(page)
-        limit = 10
-        skip = (page - 1) *limit
+        # print(page)
+        # limit = 50
+        # skip = (page - 1) *limit
 
         items = []
 
@@ -297,9 +304,8 @@ def get_chat_history(app, data,returned_data, logger):
         elif data.get('character'):
             character = data['character']
             print(character)
-            if character == 'Ustad':
-                character = 'Urdu Scholar'
-            items = collection_of_conversation.find({'username':username, 'search_value':character}).sort("user_prompt_time", sort_orders[1]).skip(skip).limit(limit)
+            items = collection_of_conversation.find({'username':username, 'search_value':character}).sort("user_prompt_time", sort_orders[1])
+            # .skip(skip).limit(limit)
     
         returned_data['items']= []
         for item in items:
@@ -307,6 +313,22 @@ def get_chat_history(app, data,returned_data, logger):
             if '_id' in item:
                 item['_id'] = str(item['_id'])
             returned_data['items'].insert(0,item)
+
+def delete_chat_history(app, data, returned_data, logger):
+    with app.app_context():
+        if data.get('username'):
+            username= data['username']
+
+        if data.get('character'):
+            character = data['character']
+            result = collection_of_conversation.delete_many({'username': username, 'search_value': character})
+
+            if result.deleted_count >= 0:
+                returned_data['info'] = f'{result.deleted_count} Data is deleted of username: {username} for search_value of {character}'
+            else:
+                returned_data['info'] = f'Data not deleted for username: {username}'
+
+            
 
 # def save_shayari_by_topic(app, data, returned_data, logger):
 #     print('Save shayari_by_topic')

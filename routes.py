@@ -7,7 +7,8 @@ from Controller.controller import (
     stream_poetry_by_topic,
     stream_poetry_by_type,
 
-    get_chat_history
+    get_chat_history,
+    delete_chat_history
     # save_shayari_by_topic
 )
 import threading
@@ -160,6 +161,43 @@ def setup_routes(app):
 
         t = threading.Thread(
             target=get_chat_history, args=(app, additional_data, return_data, logger)
+        )
+        t.start()
+        t.join()
+
+
+        # Processing on response
+        print(return_data)
+
+        # Release Semaphore
+        print("Releasing a Semaphore")
+        semaphores.release()
+
+        if not return_data:
+            return jsonify({"response": [] })
+
+        return jsonify(return_data)
+    
+
+    @app.route("/urdu-shayari/ai/delete_chat_history", methods=['DELETE'])
+    def delete_chat_history_main():
+        print("Function to delete_chat_history called")
+        query_params = {}
+        for key, value in request.args.items():
+            query_params[key] = value
+
+        
+        logger.info(f"{query_params['username']} Called API 'delete_chat_history'")
+        additional_data = query_params
+
+        return_data ={}
+
+        # Acquire Semaphore
+        print("Acquiring a Semaphore")
+        semaphores.acquire()
+
+        t = threading.Thread(
+            target=delete_chat_history, args=(app, additional_data, return_data, logger)
         )
         t.start()
         t.join()
