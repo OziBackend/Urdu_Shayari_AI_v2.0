@@ -325,8 +325,10 @@ def delete_chat_history(app, data, returned_data, logger):
 
             if result.deleted_count >= 0:
                 returned_data['info'] = f'{result.deleted_count} Data is deleted of username: {username} for search_value of {character}'
+                returned_data['flag'] = True
             else:
                 returned_data['info'] = f'Data not deleted for username: {username}'
+                returned_data['flag'] = False
 
             
 
