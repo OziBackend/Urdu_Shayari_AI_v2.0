@@ -4,3 +4,5 @@ success.log
 failure.log
 prompts.log
 controller.cpython-312.pyc
+Controller/__pycache__/controller.cpython-312.pyc
+Data_Values/__pycache__/roles.cpython-312.pyc
