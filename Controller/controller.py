@@ -182,7 +182,7 @@ def ai_conversation(app, data, logger):
 
         if character == 'Urdu Scholar':
             number='3'
-        if character in 'Dost':
+        elif character in 'Dost':
             number ='5'
         elif character == 'Competitor':
             number = '4'
