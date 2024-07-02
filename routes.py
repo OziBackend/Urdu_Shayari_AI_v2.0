@@ -47,7 +47,7 @@ def setup_routes(app):
         for key, value in request.args.items():
             query_params[key] = value
 
-        if not query_params or not query_params["poet_name"]:
+        if not query_params or not query_params["character"] or not query_params["username"]:
             print("--------Parameters missing--------")
             return (
                 jsonify(
@@ -61,9 +61,16 @@ def setup_routes(app):
         return_data = {}
         additional_data = {
             "prompt": data.get("prompt"),
-            "poet_name": query_params["poet_name"],
+            "character": query_params["character"],
             "username": query_params["username"],
         }
+        
+        if query_params.get("name"):
+            additional_data["name"]=query_params["name"]
+        if query_params.get("gender"):
+            additional_data["gender"]=query_params["gender"]
+        if query_params.get("age"):
+            additional_data["age"]=query_params["age"]
 
         # Acquire Semaphore
         print("Acquiring a Semaphore")

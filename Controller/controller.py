@@ -33,26 +33,25 @@ def format_document(doc):
 # =============================Database Functions==================================#
 ####################################################################################
 
-def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, check, logger):
+def savePromptinDB(system_prompt, user_prompt, username, user_time, character, check, logger, character_name, gender):
     user_prompt_command = ''
 
-    if check == 'by_type' or check == 'by_topic':
-        prompt = user_value
-        logger.debug(f'User Value is : {str(user_value)}')
-    elif check == 'ai_chat':
-        prompt = user_value
+    if check == 'ai_chat':
         logger.debug(f'User Prompt is : {str(user_prompt)}')
         user_prompt_command = user_prompt
 
     json_data ={
         "username":username,
         "category": check,
-        "search_value":prompt,
+        "character":character,
+        "character_name":character_name,
         "user_prompt_command":user_prompt_command,
         "user_prompt_time":user_time,
         "system_prompt":system_prompt,
         "system_response_time":datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
     }
+    if gender != "":
+        json_data["gender"] = gender
 
     if check == 'by_type':
         result = collection_by_type.insert_one(json_data)
@@ -67,7 +66,7 @@ def savePromptinDB(system_prompt, user_prompt, username, user_time, user_value, 
 # =================================Functions=======================================#
 ####################################################################################
 
-def genAIfunction(system_role, prompt, app, logger, username, user_time, user_value, check):
+def genAIfunction(system_role, prompt, app, logger, username, user_time, check, character, character_name, gender):
     with app.app_context():
         try:
             completion = client.chat.completions.create(
@@ -84,7 +83,7 @@ def genAIfunction(system_role, prompt, app, logger, username, user_time, user_va
                         ],
                     )
             completed_data = completion.choices[0].message.content
-            savePromptinDB(completed_data, prompt, username, user_time, user_value, check, logger)
+            savePromptinDB(completed_data, prompt, username, user_time, character, check, logger, character_name, gender)
             return {"flag": True, "completion_data": completed_data}
 
         except BaseException as e:
@@ -144,8 +143,8 @@ def genAIfunctionStream(system_role, prompt, app, logger, username, user_time, u
                             yield '\n'
                         sentence=''
             
-            if username != "":
-                savePromptinDB(complete_data, prompt, username, user_time, user_value, check, logger)
+            # if username != "":
+            #     savePromptinDB(complete_data, prompt, username, user_time, user_value, check, logger)
 
         except BaseException as e:
             logger.error("1... Exception thrown in GenAIfunctionstream = %s", str(e))
@@ -163,31 +162,40 @@ def ai_conversation(app, data, logger):
         username = data["username"]
         user_prompt_time = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
 
+        name=''
+        if data.get("name"):
+            name= data["name"]
+        gender=''
+        if data.get("gender"):
+            gender= data["gender"]
+        age=''
+        if data.get("age"):
+            age= data["age"]
+
         prompt = data["prompt"]
         number =''
-        poetname = data['poet_name']
-        temp = ''
 
-        if poetname == 'Ustad':
-            temp = poetname
-            poetname = 'Urdu Scholar'
+        character = data['character']
 
-        if poetname == 'Urdu Scholar':
+        if character == 'Ustad':
+            character = 'Urdu Scholar'
+
+        if character == 'Urdu Scholar':
             number='3'
-        if poetname in ['Male', 'Female']:
-            number ='3'
-        elif poetname == 'Competitor':
+        if character in 'Dost':
+            number ='5'
+        elif character == 'Competitor':
             number = '4'
-        else:
+        elif character == 'Shayar':
             number ='2'
 
-        system_role = get_role(app, number, poetname)
-        if temp=='Ustad':
-            poetname=temp
+        system_role = get_role(app, number, character, name, gender, age)
+        
+        character = data['character']
         
         
         try:
-            AI_data = genAIfunction(system_role, prompt, app, logger, username, user_prompt_time, poetname, "ai_chat")
+            AI_data = genAIfunction(system_role, prompt, app, logger, username, user_prompt_time,  "ai_chat", character, name, gender)
 
             print('getting ai data===========++++++++++',AI_data)
             if AI_data['flag']:
@@ -282,15 +290,6 @@ def stream_poetry_by_type(app, data, logger):
 def get_chat_history(app, data,returned_data, logger):
     with app.app_context():
         username = data['username']
-        # if data.get('page'):
-        #     page = int(data['page'])
-        # else:
-        #     page = 1
-
-        # print(page)
-        # limit = 50
-        # skip = (page - 1) *limit
-
         items = []
 
         if data.get('poetry_topic'):
@@ -302,9 +301,18 @@ def get_chat_history(app, data,returned_data, logger):
             print(type)
             items = collection_by_type.find({'username':username, 'search_value':type})
         elif data.get('character'):
-            character = data['character']
-            print(character)
-            items = collection_of_conversation.find({'username':username, 'search_value':character}).sort("user_prompt_time", sort_orders[1])
+            character = data['character']            
+            query_values = {
+                'username':username, 
+                'character':character}
+            
+            if data.get('name'):
+                query_values["character_name"]= data['name']
+            if data.get('gender'):
+                query_values["gender"]= data['gender']
+
+            print("QUERY: ", query_values)
+            items = collection_of_conversation.find(query_values).sort("user_prompt_time", sort_orders[1])
             # .skip(skip).limit(limit)
     
         returned_data['items']= []
@@ -320,8 +328,16 @@ def delete_chat_history(app, data, returned_data, logger):
             username= data['username']
 
         if data.get('character'):
-            character = data['character']
-            result = collection_of_conversation.delete_many({'username': username, 'search_value': character})
+            character = data['character']            
+            query_values = {
+                'username':username, 
+                'character':character}
+            if data.get('name'):
+                query_values["character_name"]= data['name']
+            if data.get('gender'):
+                query_values["gender"]= data['gender']
+            
+            result = collection_of_conversation.delete_many(query_values)
 
             if result.deleted_count >= 0:
                 returned_data['info'] = f'{result.deleted_count} Data is deleted of username: {username} for search_value of {character}'
