@@ -347,10 +347,22 @@ def delete_chat_history(app, data, returned_data, logger):
                 returned_data['flag'] = False
 
             
+####################################################################################
+####################################################################################
+##############                   File Reading                         ##############
+####################################################################################
+####################################################################################
 
-# def save_shayari_by_topic(app, data, returned_data, logger):
-#     print('Save shayari_by_topic')
-#     json_data = data["data"]
-#     result = collection_by_topic.insert_one(json_data)
-#     print('Saved Data Id: ==> %s', str(result.inserted_id))
-    
+def read_file(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        data = file.read()
+    return data
+
+def read_logfiles(app, data, returned_data):
+    file_path = ''
+    if data.get('filename'):
+        file_path = data['filename'] + '.log'
+
+        file_data = read_file(file_path)
+        returned_data['logs']=file_data
+

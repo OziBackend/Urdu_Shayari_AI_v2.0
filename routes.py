@@ -8,8 +8,9 @@ from Controller.controller import (
     stream_poetry_by_type,
 
     get_chat_history,
-    delete_chat_history
-    # save_shayari_by_topic
+    delete_chat_history,
+
+    read_logfiles
 )
 import threading
 import re
@@ -221,31 +222,37 @@ def setup_routes(app):
             return jsonify({"response": [] })
 
         return jsonify(return_data)
+    
+    @app.route("/urdu-shayari/ai/read_logs", methods=['GET'])
+    def read_logs():
+        print("Function to read_logs called")
+        query_params = {}
+        for key, value in request.args.items():
+            query_params[key] = value
 
-    # @app.route("/urdu-shayari/v2.0/save_poetry_by_topic", methods=["GET"])
-    # def save_to_db_by_topic():
-    #     print('1')
-    #     query_params = {}
-    #     for key, value in request.args.items():
-    #         query_params[key] = value
+        additional_data = query_params
 
-    #     if not query_params or not query_params["poetry_topic"]:
-    #         print("--------Parameters missing--------")
-    #         return (
-    #             jsonify(
-    #                 {"message": "Bad Request, no query found or parameters missing"}
-    #             ),
-    #             400,
-    #         )
-    #     data = request.json
+        return_data ={}
 
-    #     logger.info(f"Calling API 'get_poetry_by_topic' for {query_params["poetry_topic"]}")
+        # Acquire Semaphore
+        print("Acquiring a Semaphore")
+        semaphores.acquire()
 
-    #     return_data = {}
-    #     additional_data = {
-    #         "query_params": query_params,
-    #         "data": data}
+        t = threading.Thread(
+            target=read_logfiles, args=(app, additional_data, return_data)
+        )
+        t.start()
+        t.join()
 
-    #     save_shayari_by_topic(app, additional_data, return_data, logger)
 
-    #     return jsonify({"message": "Data is saved in database (X)"})
+        # Processing on response
+        # print(return_data)
+
+        # Release Semaphore
+        print("Releasing a Semaphore")
+        semaphores.release()
+
+        if not return_data:
+            return jsonify({"response": [] })
+
+        return jsonify(return_data)
