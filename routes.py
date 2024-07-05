@@ -223,6 +223,10 @@ def setup_routes(app):
 
         return jsonify(return_data)
     
+    #==========================================================================#
+    # Reading Log Files
+    #==========================================================================#
+
     @app.route("/urdu-shayari/ai/read_logs", methods=['GET'])
     def read_logs():
         print("Function to read_logs called")

@@ -5,6 +5,7 @@ import os
 import re
 import json
 from datetime import datetime
+from translate import Translator
 
 # laoding prompts file
 from Data_Values.prompts import prompts
@@ -161,13 +162,18 @@ def ai_conversation(app, data, logger):
     with app.app_context():
         username = data["username"]
         user_prompt_time = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
+        translator = Translator(to_lang="ur")
 
         name=''
         if data.get("name"):
             name= data["name"]
+            name= translator.translate(name)
+            print('Name in Urdu: ',name)
         gender=''
         if data.get("gender"):
             gender= data["gender"]
+            gender= translator.translate(gender)
+            print('Gender in Urdu: ', gender)
         age=''
         if data.get("age"):
             age= data["age"]
@@ -189,7 +195,9 @@ def ai_conversation(app, data, logger):
         elif character == 'Shayar':
             number ='2'
 
-        system_role = get_role(app, number, character, name, gender, age)
+        characterinUrdu = translator.translate(character)
+
+        system_role = get_role(app, number, characterinUrdu, name, gender, age)
         
         character = data['character']
         
