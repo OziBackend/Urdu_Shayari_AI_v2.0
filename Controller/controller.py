@@ -6,6 +6,7 @@ import re
 import json
 from datetime import datetime
 from translate import Translator
+from langdetect import detect
 
 # laoding prompts file
 from Data_Values.prompts import prompts
@@ -29,6 +30,17 @@ client = OpenAI()
 def format_document(doc):
     doc['_id'] = str(doc['_id'])
     return doc
+
+def detect_english(text):
+    try:
+        lang_code = detect(text)
+        if lang_code == 'en':
+            return True
+        else:
+            return False
+    except:
+        return False
+
 
 ####################################################################################
 # =============================Database Functions==================================#
@@ -67,9 +79,10 @@ def savePromptinDB(system_prompt, user_prompt, username, user_time, character, c
 # =================================Functions=======================================#
 ####################################################################################
 
-def genAIfunction(system_role, prompt, app, logger, username, user_time, check, character, character_name, gender):
+def genAIfunction(system_role, prompt, app, logger, username, user_time, check, character, character_name, gender, translatedPrompt):
     with app.app_context():
         try:
+            print('Translated prompt is : ',translatedPrompt)
             completion = client.chat.completions.create(
                         model="gpt-3.5-turbo-0125",
                         messages=[
@@ -79,7 +92,7 @@ def genAIfunction(system_role, prompt, app, logger, username, user_time, check, 
                             },
                             {
                                 "role": "user",
-                                "content": prompt,
+                                "content": translatedPrompt,
                             },
                         ],
                     )
@@ -179,6 +192,13 @@ def ai_conversation(app, data, logger):
             age= data["age"]
 
         prompt = data["prompt"]
+        if detect_english(prompt):
+            tranlatedPrompt = translator.translate(prompt)
+            print('Converted')
+        else:
+            tranlatedPrompt = prompt
+            print('Not Converted')
+
         number =''
 
         character = data['character']
@@ -203,7 +223,7 @@ def ai_conversation(app, data, logger):
         
         
         try:
-            AI_data = genAIfunction(system_role, prompt, app, logger, username, user_prompt_time,  "ai_chat", character, name, gender)
+            AI_data = genAIfunction(system_role, prompt, app, logger, username, user_prompt_time,  "ai_chat", character, name, gender, tranlatedPrompt)
 
             print('getting ai data===========++++++++++',AI_data)
             if AI_data['flag']:
